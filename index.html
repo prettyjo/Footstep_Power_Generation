@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Footstep Power Generation Dashboard</title>
+
+  <!-- Tailwind-like aesthetic with plain CSS -->
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap");
+
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: radial-gradient(circle at top left, #1f2937, #0f172a);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-top: 30px;
+      font-size: 2rem;
+      text-align: center;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 900px;
+      margin-top: 40px;
+    }
+
+    .card {
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border-radius: 18px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+
+    .label {
+      font-size: 1.1rem;
+      opacity: 0.8;
+    }
+
+    .value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    footer {
+      margin-top: 40px;
+      opacity: 0.7;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.5rem;
+      }
+      .value {
+        font-size: 1.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ Footstep Power Generation Dashboard</h1>
+
+  <div class="dashboard">
+    <div class="card" id="voltageCard">
+      <div class="icon">🔌</div>
+      <div class="label">Piezo Voltage</div>
+      <div class="value" id="busVoltage">0.00 V</div>
+    </div>
+
+    <div class="card" id="stepsCard">
+      <div class="icon">👣</div>
+      <div class="label">Remaining Steps</div>
+      <div class="value" id="remainingSteps">0</div>
+    </div>
+
+    <div class="card" id="batteryCard">
+      <div class="icon">🔋</div>
+      <div class="label">Battery Percentage</div>
+      <div class="value" id="batteryPercent">0%</div>
+    </div>
+  </div>
+
+  <footer>Made with 💚 for Sustainable Energy</footer>
+
+  <!-- Supabase JS client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // 🧠 CONFIGURE YOUR SUPABASE PROJECT
+    const SUPABASE_URL = "https://tnqblqzwrvgszvdwupjb.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRucWJscXp3cnZnc3p2ZHd1cGpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA4OTM3MTUsImV4cCI6MjA3NjQ2OTcxNX0.5FbQGMxlEL0ncX5R5z_3pkj3p7IKxyu0EeAkuuzwifc";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 🧭 Get DOM elements
+    const busVoltageEl = document.getElementById("busVoltage");
+    const remainingStepsEl = document.getElementById("remainingSteps");
+    const batteryPercentEl = document.getElementById("batteryPercent");
+
+    // ⚡ Fetch latest data on load
+    async function fetchLatestData() {
+      const { data, error } = await supabase
+        .from("footstep_data")
+        .select("*")
+        .order("id", { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error("Error fetching data:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        updateDashboard(data[0]);
+      }
+    }
+
+    // 🎯 Update dashboard display
+    function updateDashboard(newData) {
+      if (!newData) return;
+
+      const { bus_voltage, remaining_steps, battery_percent } = newData;
+
+      animateValue(busVoltageEl, parseFloat(bus_voltage).toFixed(2) + " V");
+      animateValue(remainingStepsEl, remaining_steps);
+      animateValue(batteryPercentEl, battery_percent + "%");
+    }
+
+    // 🔄 Animate metric changes smoothly
+    function animateValue(element, newValue) {
+      element.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+      element.style.transform = "scale(1.1)";
+      element.style.opacity = "0.6";
+
+      setTimeout(() => {
+        element.textContent = newValue;
+        element.style.transform = "scale(1)";
+        element.style.opacity = "1";
+      }, 200);
+    }
+
+    // 🔔 Realtime updates listener
+    async function subscribeToRealtime() {
+      const channel = supabase
+        .channel("realtime:footstep_data")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "footstep_data" },
+          (payload) => {
+            updateDashboard(payload.new);
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            console.log("✅ Realtime subscription active");
+          }
+        });
+    }
+
+    // 🚀 Initialize
+    fetchLatestData();
+    subscribeToRealtime();
+  </script>
+</body>
+</html>
